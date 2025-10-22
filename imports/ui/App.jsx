@@ -1,11 +1,22 @@
 import React from 'react';
-import { Hello } from './Hello.jsx';
-import { Info } from './Info.jsx';
+import { Link, Routes, Route } from 'react-router-dom';
+
+import { ServiceSelectionPage } from './ServiceSelectionPage.jsx';
+import { TerminalComponent } from './TerminalComponent.jsx';
+import { VMTerminal } from './VMTerminal.jsx';
+import { Login } from './Login.jsx';
+
 
 export const App = () => (
   <div>
-    <h1>Welcome to Meteor!</h1>
-    <Hello/>
-    <Info/>
+
+    <Routes>
+      <Route path="/" element={<Login/>} />
+      <Route path="/services" element={<ServiceSelectionPage/>} />
+      <Route path="/terminal" element={<TerminalComponent/>} />
+      <Route path="/vmterminal" element={<VMTerminal/>} />
+    </Routes>
   </div>
 );
+
+

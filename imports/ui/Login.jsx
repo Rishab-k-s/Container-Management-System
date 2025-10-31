@@ -10,12 +10,14 @@ export const Login = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState('user');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');  // Add this line
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = (e) => {
     e.preventDefault();
     setError('');
+    setSuccess('');  // Clear success message on login
     setLoading(true);
 
     Meteor.loginWithPassword(email, password, (err) => {
@@ -30,15 +32,17 @@ export const Login = () => {
         setLoading(false);
         
         if (error) {
-          setError('Failed to retrieve user role');
-          return;
+          console.warn('Could not retrieve user role:', error);
+          // Continue anyway with default role
+          sessionStorage.setItem('userRole', 'user');
+        } else {
+          // Store role in session
+          console.log('User role:', userRole);
+          sessionStorage.setItem('userRole', userRole);
         }
-
-        // Store role in session if needed
-        console.log('User role:', userRole);
         
         // Redirect to service selection page
-        navigate('/service-selection');
+        navigate('/services');
       });
     });
   };
@@ -46,6 +50,7 @@ export const Login = () => {
   const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
 
     if (password !== confirmPassword) {
       setError('Passwords do not match');
@@ -60,41 +65,36 @@ export const Login = () => {
     setLoading(true);
 
     try {
-      // Create user account
+      // Create user account with profile including role
       await new Promise((resolve, reject) => {
         Accounts.createUser(
           {
             email: email,
             password: password,
+            profile: { role: role }
           },
           (error) => {
             if (error) {
               reject(error);
             } else {
-              resolve(Meteor.userId());
+              resolve();
             }
           }
         );
       });
 
-      // Wait for user to be fully logged in (500ms delay)
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Set user role
-      await new Promise((resolve, reject) => {
-        Meteor.call('users.setRoleOnRegistration', role, (error, result) => {
-          if (error) {
-            reject(error);
-          } else {
-            resolve(result);
-          }
-        });
+      // Log out the user immediately after registration
+      Meteor.logout(() => {
+        setLoading(false);
+        setSuccess('Account created successfully! Please sign in with your credentials.');
+        
+        // Switch to login mode and clear form
+        setIsRegister(false);
+        setPassword('');
+        setConfirmPassword('');
+        // Keep email filled for convenience
       });
 
-      setLoading(false);
-
-      // Redirect to service selection page
-      navigate('/service-selection');
     } catch (err) {
       setLoading(false);
       setError(err.reason || err.message || 'Registration failed. Please try again.');
@@ -130,6 +130,7 @@ export const Login = () => {
       margin: '0 0 8px',
       fontSize: '28px',
       fontWeight: '700',
+      color: 'white',
     },
     loginSubtitle: {
       margin: '0',
@@ -185,6 +186,18 @@ export const Login = () => {
       border: '1px solid #fcc',
       borderRadius: '8px',
       color: '#c33',
+      fontSize: '14px',
+      marginBottom: '20px',
+    },
+    successMessage: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '12px 16px',
+      backgroundColor: '#d4edda',
+      border: '1px solid #c3e6cb',
+      borderRadius: '8px',
+      color: '#155724',
       fontSize: '14px',
       marginBottom: '20px',
     },
@@ -352,6 +365,16 @@ export const Login = () => {
               </div>
             )}
 
+            {success && (
+              <div style={styles.successMessage}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                  <path d="M9 12L11 14L15 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                {success}
+              </div>
+            )}
+
             <button 
               type="submit" 
               style={{
@@ -380,7 +403,11 @@ export const Login = () => {
                 onClick={() => {
                   setIsRegister(!isRegister);
                   setError('');
-                  setConfirmPassword('');
+                  setSuccess('');
+                  setEmail('');           // Clear email
+                  setPassword('');        // Clear password
+                  setConfirmPassword(''); // Clear confirm password
+                  setRole('user');        // Reset role to default
                 }}
                 disabled={loading}
               >

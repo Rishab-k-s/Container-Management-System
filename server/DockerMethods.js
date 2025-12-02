@@ -74,12 +74,9 @@ Meteor.methods({
         HostConfig: {
           PortBindings: {
             '22/tcp': [{ HostPort: String(sshPort) }]
-          },
-          CapDrop: ['ALL'],
-          CapAdd: [
-            'SETUID', 'SETGID', 'CHOWN', 'DAC_OVERRIDE', 'FOWNER', 
-            'KILL', 'NET_BIND_SERVICE', 'SYS_CHROOT'
-          ]
+          }
+          // Removed restrictive capabilities (CapDrop/CapAdd) to fix "linux_audit_write_entry failed"
+          // and ensure standard tools work correctly inside the container.
         }
         // Removed Healthcheck to avoid potential issues with PID file in non-daemon mode
       });

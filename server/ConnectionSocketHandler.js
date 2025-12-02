@@ -37,16 +37,31 @@ io.on('connection', (socket) => {
         console.log(`SSH connection ready for container ${containerId}`);
         socket.emit('container-connected');
 
-        ssh.shell((err, stream) => {
+        // Request a proper PTY with xterm terminal
+        ssh.shell({
+          term: 'xterm-256color',
+          cols: 80,
+          rows: 24,
+          width: 640,
+          height: 480,
+          modes: {
+            ECHO: 1,      // Enable echo mode
+            ECHOCTL: 1    // Echo control characters
+          }
+        }, (err, stream) => {
           if (err) {
             console.error('SSH shell error:', err);
             socket.emit('container-error', { message: err.message });
             return;
           }
 
+          console.log('SSH shell established with PTY for container:', containerId);
+
           // Forward SSH output to client
           stream.on('data', (data) => {
-            socket.emit('container-output', data.toString('utf-8'));
+            const output = data.toString('utf-8');
+            console.log('SSH output:', output.length, 'bytes');
+            socket.emit('container-output', output);
           });
 
           stream.on('close', () => {
@@ -55,14 +70,24 @@ io.on('connection', (socket) => {
             ssh.end();
           });
 
+          stream.stderr.on('data', (data) => {
+            console.error('SSH stderr:', data.toString());
+          });
+
           // Handle input from client
           socket.on('container-input', (data) => {
+            console.log('Received input from client:', JSON.stringify(data), 'length:', data.length);
             stream.write(data);
           });
 
-          // Handle terminal resize
+          // Handle terminal resize - important for proper display
           socket.on('container-resize', ({ cols, rows }) => {
-            stream.setWindow(rows, cols);
+            console.log('Terminal resize:', cols, 'x', rows);
+            try {
+              stream.setWindow(rows, cols, 640, 480);
+            } catch (e) {
+              console.error('Error resizing terminal:', e);
+            }
           });
         });
       });
@@ -78,13 +103,19 @@ io.on('connection', (socket) => {
         sshConnections.delete(socket.id);
       });
 
-      // Connect to SSH server
       ssh.connect({
         host: host || 'localhost',
         port: sshPort,
         username: username || 'root',
         password: password || 'password123',
-        readyTimeout: 20000
+        readyTimeout: 30000,
+        keepaliveInterval: 10000,
+        keepaliveCountMax: 3,
+        // Add these for better compatibility
+        algorithms: {
+          serverHostKey: ['ssh-rsa', 'ssh-dss', 'ecdsa-sha2-nistp256', 'ecdsa-sha2-nistp384', 'ecdsa-sha2-nistp521']
+        },
+        debug: (msg) => console.log('SSH Debug:', msg)
       });
 
     } catch (error) {

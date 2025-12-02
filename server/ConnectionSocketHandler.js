@@ -135,6 +135,106 @@ io.on('connection', (socket) => {
     }
   });
 
+  // ==========================================
+  // VM Terminal Handlers (Generic SSH)
+  // ==========================================
+
+  socket.on('startSession', (data) => {
+    console.log('Starting VM SSH session:', data.host);
+    
+    const ssh = new Client();
+    sshConnections.set(socket.id, { ssh, type: 'vm' });
+
+    ssh.on('ready', () => {
+      console.log('VM SSH Client :: ready');
+      socket.emit('sshConnected', { message: 'Connected successfully' });
+
+      ssh.shell({
+        term: 'xterm-256color',
+        cols: 80,
+        rows: 24
+      }, (err, stream) => {
+        if (err) {
+          console.error('VM SSH Shell Error:', err);
+          socket.emit('error', { message: 'Failed to start shell: ' + err.message });
+          return;
+        }
+
+        // Handle output from SSH
+        stream.on('data', (chunk) => {
+          socket.emit('output', chunk.toString('utf-8'));
+        });
+
+        stream.on('close', () => {
+          console.log('VM SSH Stream :: close');
+          socket.emit('ssh-session-ended');
+          ssh.end();
+        });
+
+        stream.stderr.on('data', (data) => {
+          socket.emit('output', data.toString('utf-8'));
+        });
+
+        // Handle input from client
+        socket.on('input', (inputData) => {
+          stream.write(inputData);
+        });
+
+        // Handle resize
+        socket.on('resize', (size) => {
+          if (size && size.cols && size.rows) {
+            stream.setWindow(size.rows, size.cols, 0, 0);
+          }
+        });
+      });
+    });
+
+    ssh.on('error', (err) => {
+      console.error('VM SSH Client Error:', err);
+      socket.emit('error', { message: err.message });
+      sshConnections.delete(socket.id);
+    });
+
+    ssh.on('close', () => {
+      console.log('VM SSH Client :: close');
+      socket.emit('ssh-session-ended');
+      sshConnections.delete(socket.id);
+    });
+
+    try {
+      const connectConfig = {
+        host: data.host,
+        port: parseInt(data.port),
+        username: data.username,
+        readyTimeout: 20000,
+        keepaliveInterval: 10000
+      };
+
+      if (data.useKeyAuth) {
+        connectConfig.privateKey = data.privateKey;
+        if (data.passphrase) {
+          connectConfig.passphrase = data.passphrase;
+        }
+      } else {
+        connectConfig.password = data.password;
+      }
+
+      ssh.connect(connectConfig);
+    } catch (err) {
+      console.error('VM SSH Connect Exception:', err);
+      socket.emit('error', { message: err.message });
+    }
+  });
+
+  socket.on('endSession', () => {
+    console.log('Ending VM SSH session');
+    const connection = sshConnections.get(socket.id);
+    if (connection && connection.ssh) {
+      connection.ssh.end();
+      sshConnections.delete(socket.id);
+    }
+  });
+
   // Handle client disconnect
   socket.on('disconnect', () => {
     console.log(`Client disconnected: ${socket.id}`);

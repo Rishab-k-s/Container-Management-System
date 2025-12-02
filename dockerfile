@@ -52,12 +52,16 @@ RUN ssh-keygen -A
 RUN echo 'root:password123' | chpasswd
 
 # OPTIMIZATION: Configure SSH in one go with optimized settings
-RUN { \
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's/UsePAM no/UsePAM yes/' /etc/ssh/sshd_config && \
+    { \
     echo 'PermitRootLogin yes'; \
     echo 'PasswordAuthentication yes'; \
     echo 'PubkeyAuthentication yes'; \
     echo 'ChallengeResponseAuthentication no'; \
-    echo 'UsePAM no'; \
+    echo 'UsePAM yes'; \
     echo 'AcceptEnv LANG LC_*'; \
     echo 'Subsystem sftp /usr/lib/openssh/sftp-server'; \
     echo 'PermitEmptyPasswords no'; \

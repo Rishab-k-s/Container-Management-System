@@ -1,0 +1,15 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "append_css",
+			"type": "shell",
+			"command": "echo \"Appending CSS...\""
+		},
+		{
+			"label": "append_css_controls",
+			"type": "shell",
+			"command": "echo \"Appending CSS for window controls...\""
+		}
+	]
+}

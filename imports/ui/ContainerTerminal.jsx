@@ -21,7 +21,36 @@ export const ContainerTerminal = ({ container, onClose }) => {
   const [connectionStatus, setConnectionStatus] = useState('Initializing...');
   const [isConnected, setIsConnected] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [viewState, setViewState] = useState('normal'); // 'normal', 'maximized', 'minimized'
   const maxRetries = 5;
+
+  // Handle resize when view state changes
+  useEffect(() => {
+    if (viewState !== 'minimized') {
+      // Wait for transition to finish
+      const timer = setTimeout(() => {
+        try {
+          if (fitAddon.current && term.current) {
+            fitAddon.current.fit();
+            term.current.focus();
+          }
+        } catch (e) {
+          console.log('Resize error:', e);
+        }
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [viewState]);
+
+  const toggleMaximize = (e) => {
+    e.stopPropagation();
+    setViewState(curr => curr === 'maximized' ? 'normal' : 'maximized');
+  };
+
+  const toggleMinimize = (e) => {
+    e.stopPropagation();
+    setViewState(curr => curr === 'minimized' ? 'normal' : 'minimized');
+  };
 
   // Initialize terminal
   const initializeTerminal = () => {
@@ -354,17 +383,57 @@ export const ContainerTerminal = ({ container, onClose }) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={handleModalClick}>
-        <div className="modal-header">
-          <h3>SSH Terminal - {container.name || container.id.substring(0, 12)}</h3>
-          <button className="modal-close" onClick={onClose}>×</button>
+    <div className={`bottom-panel-overlay ${viewState === 'minimized' ? 'minimized' : ''}`} onClick={viewState === 'minimized' ? null : onClose}>
+      <div className={`bottom-panel-content ${viewState}`} onClick={handleModalClick}>
+        <div className="modal-header" onClick={viewState === 'minimized' ? toggleMinimize : undefined}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h3>SSH Terminal - {container.name || container.id.substring(0, 12)}</h3>
+            {viewState === 'minimized' && (
+              <span style={{ fontSize: '12px', color: '#aaa', fontWeight: 'normal' }}>
+                (Click to restore)
+              </span>
+            )}
+          </div>
+          
+          <div className="window-controls">
+            <button 
+              className="window-btn" 
+              onClick={toggleMinimize} 
+              title={viewState === 'minimized' ? "Restore" : "Minimize"}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M5 12H19" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </button>
+            
+            <button 
+              className="window-btn" 
+              onClick={toggleMaximize} 
+              title={viewState === 'maximized' ? "Restore" : "Maximize"}
+            >
+              {viewState === 'maximized' ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M16 4h4v4M8 20H4v-4M20 16v4h-4M4 8V4h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="2"/>
+                </svg>
+              )}
+            </button>
+            
+            <button className="window-btn close" onClick={onClose} title="Close">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div className="terminal-status-bar" style={{
-          padding: '12px 24px',
-          backgroundColor: '#34495e',
-          borderBottom: '1px solid #4a5f7a',
+          padding: '8px 20px',
+          backgroundColor: '#252526',
+          borderBottom: '1px solid #333',
           display: 'flex',
           alignItems: 'center',
           gap: '12px'
@@ -397,11 +466,12 @@ export const ContainerTerminal = ({ container, onClose }) => {
           className="terminal-instance"
           onClick={handleTerminalClick}
           style={{ 
-            height: '500px',
+            flex: 1,
             padding: '10px',
             backgroundColor: '#1e1e1e',
             cursor: 'text',
-            outline: 'none'
+            outline: 'none',
+            overflow: 'hidden'
           }}
         />
       </div>

@@ -1,9 +1,10 @@
-// ContainerTerminal.jsx - PTY Mode (Full Linux Shell)
-// Proper pseudo-terminal with SSH echo, command history, and directory awareness
+// ContainerTerminal.jsx - OPTIMIZED with SSH polling
+// Connects immediately and polls for SSH readiness
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
+import { Meteor } from 'meteor/meteor';
 import io from 'socket.io-client';
 import 'xterm/css/xterm.css';
 
@@ -15,11 +16,12 @@ export const ContainerTerminal = ({ container, onClose }) => {
   const isInitialized = useRef(false);
   const inputHandlerRef = useRef(null);
   const isConnectedRef = useRef(false);
+  const sshPollInterval = useRef(null);
   
-  const [connectionStatus, setConnectionStatus] = useState('Connecting...');
+  const [connectionStatus, setConnectionStatus] = useState('Initializing...');
   const [isConnected, setIsConnected] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
-  const maxRetries = 3;
+  const maxRetries = 5;
 
   // Initialize terminal
   const initializeTerminal = () => {
@@ -56,7 +58,7 @@ export const ContainerTerminal = ({ container, onClose }) => {
           brightWhite: '#ffffff'
         },
         scrollOnUserInput: true,
-        convertEol: false,  // PTY handles line endings
+        convertEol: false,
         allowTransparency: false,
         cols: 80,
         rows: 24
@@ -96,27 +98,24 @@ export const ContainerTerminal = ({ container, onClose }) => {
     }
   };
 
-  // Setup input handler for PTY mode (no local echo)
+  // Setup input handler
   const setupInputHandler = () => {
     if (!term.current || !socket.current) return;
 
-    // Remove any existing input handler
     if (inputHandlerRef.current) {
       inputHandlerRef.current.dispose?.();
     }
 
-    // PTY handles all echoing - we just forward input
     inputHandlerRef.current = term.current.onData((data) => {
       if (socket.current && socket.current.connected) {
         socket.current.emit('container-input', data);
       }
     });
 
-    // Send initial terminal size
     sendTerminalSize();
   };
 
-  // Send terminal dimensions to server
+  // Send terminal dimensions
   const sendTerminalSize = () => {
     if (!fitAddon.current || !socket.current || !socket.current.connected) return;
     
@@ -127,11 +126,51 @@ export const ContainerTerminal = ({ container, onClose }) => {
           cols: dims.cols || 80,
           rows: dims.rows || 24
         });
-        console.log('Sent terminal size:', dims.cols, 'x', dims.rows);
       }
     } catch (e) {
       console.warn('Failed to send terminal size:', e);
     }
+  };
+
+  // OPTIMIZATION: Poll for SSH readiness
+  const checkSSHReady = () => {
+    Meteor.call('docker.checkSSHReady', container.id, (err, result) => {
+      if (err) {
+        console.error('SSH check error:', err);
+        return;
+      }
+
+      if (result && result.ready) {
+        console.log('SSH is ready, attempting connection...');
+        if (sshPollInterval.current) {
+          clearInterval(sshPollInterval.current);
+          sshPollInterval.current = null;
+        }
+        attemptConnection();
+      }
+    });
+  };
+
+  // Attempt SSH connection
+  const attemptConnection = () => {
+    if (!socket.current || !socket.current.connected) {
+      console.warn('Socket not connected, cannot attempt SSH connection');
+      return;
+    }
+
+    setConnectionStatus('Connecting to SSH...');
+    
+    if (term.current && isInitialized.current) {
+      term.current.writeln('\x1b[36mConnecting to SSH server...\x1b[0m');
+    }
+
+    socket.current.emit('container-connect', {
+      containerId: container.id,
+      sshPort: container.sshPort,
+      host: 'localhost',
+      username: 'root',
+      password: 'password123'
+    });
   };
 
   useEffect(() => {
@@ -148,8 +187,6 @@ export const ContainerTerminal = ({ container, onClose }) => {
             if (rect.width > 0 && rect.height > 0) {
               fitAddon.current.fit();
               term.current.focus();
-              
-              // Update server with new size
               sendTerminalSize();
             }
           }
@@ -174,32 +211,43 @@ export const ContainerTerminal = ({ container, onClose }) => {
           console.log('WebSocket connected');
           if (term.current && isInitialized.current) {
             term.current.writeln('\x1b[32m✓ WebSocket connected\x1b[0m');
-            term.current.writeln('\x1b[36mWaiting for SSH server to be ready...\x1b[0m');
           }
           
-          // Wait 2 seconds for SSH server to be fully ready
-          setTimeout(() => {
-            if (socket.current && socket.current.connected) {
-              // Initiate SSH connection with PTY
-              socket.current.emit('container-connect', {
-                containerId: container.id,
-                sshPort: container.sshPort,
-                host: 'localhost',
-                username: 'root',
-                password: 'password123'
-              });
+          // OPTIMIZATION: Start polling for SSH immediately
+          if (container.sshReady) {
+            // Container reported SSH as ready, connect immediately
+            if (term.current && isInitialized.current) {
+              term.current.writeln('\x1b[32m✓ SSH server ready\x1b[0m');
             }
-          }, 2000);
+            setTimeout(() => attemptConnection(), 500);
+          } else {
+            // Poll for SSH readiness
+            if (term.current && isInitialized.current) {
+              term.current.writeln('\x1b[33m⏳ Waiting for SSH server...\x1b[0m');
+            }
+            setConnectionStatus('Waiting for SSH...');
+            
+            // Check immediately and then every 500ms
+            checkSSHReady();
+            sshPollInterval.current = setInterval(checkSSHReady, 500);
+            
+            // Timeout after 10 seconds
+            setTimeout(() => {
+              if (sshPollInterval.current) {
+                clearInterval(sshPollInterval.current);
+                sshPollInterval.current = null;
+                attemptConnection(); // Try anyway
+              }
+            }, 10000);
+          }
         });
 
-        // Receive output from SSH
         socket.current.on('container-output', data => {
           if (term.current && isInitialized.current) {
             term.current.write(data);
           }
         });
 
-        // SSH connection established
         socket.current.on('container-connected', () => {
           console.log('SSH PTY connected');
           setConnectionStatus('Connected');
@@ -211,7 +259,6 @@ export const ContainerTerminal = ({ container, onClose }) => {
             term.current.writeln('\x1b[33m⚡ PTY mode - Full Linux shell active\x1b[0m');
             term.current.writeln('');
             
-            // Set up input handler after connection
             setTimeout(() => {
               setupInputHandler();
               term.current.focus();
@@ -222,36 +269,26 @@ export const ContainerTerminal = ({ container, onClose }) => {
         socket.current.on('container-error', (error) => {
           console.error('Container connection error:', error);
           
-          // Check if we should retry
+          // Retry logic
           if (error.message && error.message.includes('ECONNRESET') && retryCount < maxRetries) {
             setRetryCount(prev => prev + 1);
             setConnectionStatus(`Retrying... (${retryCount + 1}/${maxRetries})`);
             
             if (term.current && isInitialized.current) {
-              term.current.writeln(`\r\n\x1b[33m⚠ Connection reset, retrying in 2 seconds...\x1b[0m`);
+              term.current.writeln(`\r\n\x1b[33m⚠ Connection reset, retrying in 1 second...\x1b[0m`);
             }
             
-            // Retry after 2 seconds
             setTimeout(() => {
               if (socket.current && socket.current.connected) {
-                term.current.writeln('\x1b[36mRetrying connection...\x1b[0m');
-                socket.current.emit('container-connect', {
-                  containerId: container.id,
-                  sshPort: container.sshPort,
-                  host: 'localhost',
-                  username: 'root',
-                  password: 'password123'
-                });
+                attemptConnection();
               }
-            }, 2000);
+            }, 1000);
           } else {
-            // Max retries reached or different error
             setConnectionStatus('Connection Error');
             if (term.current && isInitialized.current) {
               term.current.writeln(`\r\n\x1b[31m✗ Connection error: ${error.message || error}\x1b[0m`);
               if (retryCount >= maxRetries) {
                 term.current.writeln(`\x1b[31m✗ Max retries (${maxRetries}) reached\x1b[0m`);
-                term.current.writeln(`\x1b[33mTip: Check if SSH server is running in container\x1b[0m`);
               }
             }
           }
@@ -272,11 +309,15 @@ export const ContainerTerminal = ({ container, onClose }) => {
       }
     };
 
-    setTimeout(initSocket, 500);
+    setTimeout(initSocket, 300); // Reduced from 500ms
 
     return () => {
       clearTimeout(resizeTimeout);
       window.removeEventListener('resize', handleResize);
+      
+      if (sshPollInterval.current) {
+        clearInterval(sshPollInterval.current);
+      }
       
       if (inputHandlerRef.current) {
         inputHandlerRef.current.dispose?.();
@@ -307,7 +348,7 @@ export const ContainerTerminal = ({ container, onClose }) => {
   };
 
   const getStatusColor = () => {
-    if (connectionStatus === 'Connecting...') return '#f39c12';
+    if (connectionStatus.includes('Waiting') || connectionStatus.includes('Initializing')) return '#f39c12';
     if (isConnected) return '#2ecc71';
     return '#e74c3c';
   };

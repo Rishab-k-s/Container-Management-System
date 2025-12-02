@@ -1,19 +1,22 @@
-# Use the latest Debian image
+# OPTIMIZED Debian SSH Container
+# This version starts SSH server faster
+
 FROM debian:latest
 
 # Set environment variables
-ENV DEBIAN_FRONTEND=noninteractive
-ENV TERM=xterm-256color
+ENV DEBIAN_FRONTEND=noninteractive \
+    TERM=xterm-256color
 
-# Install OpenSSH server and essential Linux tools
+# OPTIMIZATION: Install everything in one layer to reduce build time
 RUN apt-get update && \
-    apt-get install -y \
+    apt-get install -y --no-install-recommends \
     openssh-server \
     bash \
     coreutils \
     util-linux \
     procps \
     net-tools \
+    iproute2 \
     iputils-ping \
     curl \
     wget \
@@ -25,7 +28,7 @@ RUN apt-get update && \
     less \
     grep \
     sed \
-    awk \
+    gawk \
     tar \
     gzip \
     bzip2 \
@@ -35,63 +38,74 @@ RUN apt-get update && \
     ncurses-bin \
     file \
     findutils \
-    && apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Create the directory for the SSH daemon to run
-RUN mkdir -p /var/run/sshd
+# OPTIMIZATION: Pre-create SSH directories and keys
+RUN mkdir -p /var/run/sshd /root/.ssh && \
+    chmod 700 /root/.ssh
 
-# Generate SSH host keys
+# OPTIMIZATION: Generate ALL SSH host keys in one command
 RUN ssh-keygen -A
 
-# Set a root password
+# OPTIMIZATION: Set root password
 RUN echo 'root:password123' | chpasswd
 
-# Configure SSH for better compatibility and security
-RUN sed -i 's/^#*PermitRootLogin .*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    sed -i 's/^#*PasswordAuthentication .*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
-    sed -i 's/^#*PubkeyAuthentication .*/PubkeyAuthentication yes/' /etc/ssh/sshd_config && \
-    sed -i 's/^#*ChallengeResponseAuthentication .*/ChallengeResponseAuthentication no/' /etc/ssh/sshd_config && \
-    sed -i 's/UsePAM yes/UsePAM no/' /etc/ssh/sshd_config && \
-    echo "AcceptEnv LANG LC_*" >> /etc/ssh/sshd_config && \
-    echo "Subsystem sftp /usr/lib/openssh/sftp-server" >> /etc/ssh/sshd_config && \
-    echo "PermitEmptyPasswords no" >> /etc/ssh/sshd_config && \
-    echo "MaxAuthTries 6" >> /etc/ssh/sshd_config && \
-    echo "MaxSessions 10" >> /etc/ssh/sshd_config
+# OPTIMIZATION: Configure SSH in one go with optimized settings
+RUN { \
+    echo 'PermitRootLogin yes'; \
+    echo 'PasswordAuthentication yes'; \
+    echo 'PubkeyAuthentication yes'; \
+    echo 'ChallengeResponseAuthentication no'; \
+    echo 'UsePAM no'; \
+    echo 'AcceptEnv LANG LC_*'; \
+    echo 'Subsystem sftp /usr/lib/openssh/sftp-server'; \
+    echo 'PermitEmptyPasswords no'; \
+    echo 'MaxAuthTries 6'; \
+    echo 'MaxSessions 10'; \
+    echo 'X11Forwarding no'; \
+    echo 'PrintMotd no'; \
+    echo 'UseDNS no'; \
+    echo 'GSSAPIAuthentication no'; \
+    } >> /etc/ssh/sshd_config
 
-# Verify SSH host keys exist
-RUN ls -la /etc/ssh/ssh_host_* || echo "Warning: SSH host keys missing!"
+# OPTIMIZATION: Set up bash configuration in one layer
+RUN { \
+    echo 'export PS1="\[\e[32m\]\u@\h\[\e[m\]:\[\e[34m\]\w\[\e[m\]\$ "'; \
+    echo 'export TERM=xterm-256color'; \
+    echo 'alias ll="ls -lah"'; \
+    echo 'alias la="ls -A"'; \
+    echo 'alias l="ls -CF"'; \
+    } >> /root/.bashrc
 
-# Set up bash as default shell
-RUN chsh -s /bin/bash root
-
-# Create a nice bash prompt
-RUN echo 'export PS1="\[\e[32m\]\u@\h\[\e[m\]:\[\e[34m\]\w\[\e[m\]\$ "' >> /root/.bashrc && \
-    echo 'export TERM=xterm-256color' >> /root/.bashrc && \
-    echo 'alias ll="ls -lah"' >> /root/.bashrc && \
-    echo 'alias la="ls -A"' >> /root/.bashrc && \
-    echo 'alias l="ls -CF"' >> /root/.bashrc
-
-# Create a working directory
+# Create working directory
 RUN mkdir -p /workspace
 WORKDIR /workspace
 
-# Create a welcome message
-RUN echo '#!/bin/bash' > /etc/profile.d/welcome.sh && \
-    echo 'echo "Welcome to your Linux container!"' >> /etc/profile.d/welcome.sh && \
-    echo 'echo "Type '\''help'\'' for common commands or '\''man <command>'\'' for documentation."' >> /etc/profile.d/welcome.sh && \
-    echo 'echo ""' >> /etc/profile.d/welcome.sh && \
+# OPTIMIZATION: Simplified welcome message
+RUN { \
+    echo '#!/bin/bash'; \
+    echo 'echo "Welcome to your Linux container!"'; \
+    echo 'echo ""'; \
+    } > /etc/profile.d/welcome.sh && \
     chmod +x /etc/profile.d/welcome.sh
 
 # Expose SSH port
 EXPOSE 22
 
-# Create an entrypoint script to ensure SSH starts properly
-RUN echo '#!/bin/bash' > /entrypoint.sh && \
-    echo 'echo "Starting SSH server..."' >> /entrypoint.sh && \
-    echo 'ls -la /etc/ssh/ssh_host_* || ssh-keygen -A' >> /entrypoint.sh && \
-    echo 'exec /usr/sbin/sshd -D -e' >> /entrypoint.sh && \
+# OPTIMIZATION: Ultra-fast entrypoint - no unnecessary checks
+# The SSH keys are already generated, so we just start the server
+RUN { \
+    echo '#!/bin/bash'; \
+    echo 'set -e'; \
+    echo '# Start SSH in foreground with minimal logging'; \
+    echo 'exec /usr/sbin/sshd -D -e'; \
+    } > /entrypoint.sh && \
     chmod +x /entrypoint.sh
 
-# Use the entrypoint script
+# Use the optimized entrypoint
 ENTRYPOINT ["/entrypoint.sh"]
+
+# OPTIMIZATION: Add healthcheck for Docker
+HEALTHCHECK --interval=1s --timeout=1s --start-period=1s --retries=10 \
+  CMD test -f /var/run/sshd.pid || exit 1

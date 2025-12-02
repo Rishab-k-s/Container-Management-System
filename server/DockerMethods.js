@@ -1,8 +1,10 @@
 import { Meteor } from 'meteor/meteor';
+import Docker from 'dockerode';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
+const docker = new Docker();
 
 // Store for tracking created containers
 const containerStore = new Map();
@@ -39,8 +41,9 @@ Meteor.methods({
       if (imageExists === null || (now - lastImageCheck) > IMAGE_CHECK_CACHE_MS) {
         console.log('Checking for Docker image...');
         try {
-          const { stdout: imageCheck } = await execAsync('docker images -q debian-ssh-server');
-          imageExists = imageCheck.trim().length > 0;
+          const image = docker.getImage('debian-ssh-server');
+          await image.inspect();
+          imageExists = true;
           lastImageCheck = now;
         } catch (error) {
           imageExists = false;
@@ -60,61 +63,80 @@ Meteor.methods({
         console.log('✓ Using cached image');
       }
 
-      // OPTIMIZATION: Start container with healthcheck disabled for faster startup
-      const dockerCommand = `docker run -d \
-        --name ${containerName} \
-        -p ${sshPort}:22 \
-        --cap-drop=ALL \
-        --cap-add=SETUID \
-        --cap-add=SETGID \
-        --cap-add=CHOWN \
-        --cap-add=DAC_OVERRIDE \
-        --cap-add=FOWNER \
-        --cap-add=KILL \
-        --cap-add=NET_BIND_SERVICE \
-        --cap-add=SYS_CHROOT \
-        --health-cmd="test -f /var/run/sshd.pid || exit 1" \
-        --health-interval=1s \
-        --health-retries=10 \
-        --health-start-period=1s \
-        debian-ssh-server`;
+      // Create container using Dockerode
+      console.log('Creating container configuration...');
+      const container = await docker.createContainer({
+        Image: 'debian-ssh-server',
+        name: containerName,
+        ExposedPorts: {
+          '22/tcp': {}
+        },
+        HostConfig: {
+          PortBindings: {
+            '22/tcp': [{ HostPort: String(sshPort) }]
+          },
+          CapDrop: ['ALL'],
+          CapAdd: [
+            'SETUID', 'SETGID', 'CHOWN', 'DAC_OVERRIDE', 'FOWNER', 
+            'KILL', 'NET_BIND_SERVICE', 'SYS_CHROOT'
+          ]
+        }
+        // Removed Healthcheck to avoid potential issues with PID file in non-daemon mode
+      });
 
       console.log('Starting container...');
-      const { stdout: containerId } = await execAsync(dockerCommand);
-      const trimmedId = containerId.trim();
+      await container.start();
+      const containerId = container.id;
+      const trimmedId = containerId.substring(0, 12);
 
       console.log(`Container created: ${trimmedId}`);
 
-      // OPTIMIZATION: Faster SSH readiness check (reduced from 15 to 8 seconds max)
-      // Check every 500ms instead of 1s, and use faster detection method
+      // OPTIMIZATION: Faster SSH readiness check
       let sshReady = false;
-      const maxAttempts = 16; // 16 * 500ms = 8 seconds max
+      const maxAttempts = 20; // 10 seconds max
       
       for (let i = 0; i < maxAttempts; i++) {
-        await new Promise(resolve => setTimeout(resolve, 500)); // 500ms intervals
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         try {
-          // OPTIMIZATION: Single fast check using ss (faster than netstat)
-          const { stdout } = await execAsync(
-            `docker exec ${trimmedId} ss -tlnH 2>/dev/null | grep -q :22 && echo "ready" || echo "not ready"`,
-            { timeout: 1000 } // 1 second timeout for the command
-          );
+          // Use dockerode exec with Tty: true to avoid multiplexing headers
+          const exec = await container.exec({
+            Cmd: ['bash', '-c', 'ss -tlnH | grep :22'],
+            AttachStdout: true,
+            AttachStderr: true,
+            Tty: true
+          });
           
-          if (stdout.includes('ready')) {
+          const stream = await exec.start();
+          let output = '';
+          
+          await new Promise((resolve, reject) => {
+            stream.on('data', (chunk) => output += chunk.toString());
+            stream.on('end', resolve);
+            stream.on('error', reject);
+          });
+
+          // Debug output
+          // console.log(`SSH Check Output (${i}): ${output.trim()}`);
+
+          // Also check inspect to see if it's running
+          const info = await container.inspect();
+          if (!info.State.Running) {
+             throw new Error('Container is not running');
+          }
+
+          if (output.includes('22') || output.includes('LISTEN')) {
             sshReady = true;
             console.log(`✓ SSH ready after ${(i + 1) * 0.5} seconds`);
             break;
           }
         } catch (checkError) {
-          // Continue checking
-          if (i === 0 || i === 5 || i === 10 || i === 15) {
+          if (i % 5 === 0) {
             console.log(`Waiting for SSH... (attempt ${i + 1}/${maxAttempts})`);
           }
         }
       }
 
-      // OPTIMIZATION: Don't fail if SSH isn't detected - return immediately
-      // The frontend will retry connection if needed
       if (!sshReady) {
         console.warn('⚠ SSH may still be starting (returning early)');
       }
@@ -155,11 +177,23 @@ Meteor.methods({
     }
 
     try {
-      const { stdout } = await execAsync(
-        `docker exec ${containerId} ss -tlnH 2>/dev/null | grep -q :22 && echo "ready" || echo "not ready"`,
-        { timeout: 1000 }
-      );
-      return { ready: stdout.includes('ready') };
+      const container = docker.getContainer(containerId);
+      const exec = await container.exec({
+        Cmd: ['bash', '-c', 'ss -tlnH | grep :22'],
+        AttachStdout: true,
+        AttachStderr: true,
+        Tty: true
+      });
+      
+      const stream = await exec.start();
+      let output = '';
+      
+      await new Promise((resolve) => {
+        stream.on('data', (chunk) => output += chunk.toString());
+        stream.on('end', resolve);
+      });
+
+      return { ready: output.includes('22') || output.includes('LISTEN') };
     } catch (error) {
       return { ready: false, error: error.message };
     }
@@ -174,29 +208,26 @@ Meteor.methods({
     }
 
     try {
-      // OPTIMIZATION: Single command to get all info
-      const { stdout } = await execAsync(
-        'docker ps -a --format "{{.ID}}|{{.Names}}|{{.Image}}|{{.CreatedAt}}|{{.Ports}}|{{.Status}}"',
-        { timeout: 5000 }
-      );
-
-      if (!stdout.trim()) {
-        return [];
-      }
-
-      const containers = stdout.trim().split('\n').map(line => {
-        const [id, name, image, created, ports, status] = line.split('|');
+      const containers = await docker.listContainers({ all: true });
+      
+      return containers.map(info => {
+        const id = info.Id.substring(0, 12);
+        const name = info.Names[0].replace(/^\//, ''); // Remove leading slash
         
-        // Extract SSH port
-        const portMatch = ports.match(/0\.0\.0\.0:(\d+)->22/);
-        const sshPort = portMatch ? parseInt(portMatch[1]) : null;
+        // Find SSH port
+        let sshPort = null;
+        if (info.Ports) {
+          const portMap = info.Ports.find(p => p.PrivatePort === 22);
+          if (portMap && portMap.PublicPort) {
+            sshPort = portMap.PublicPort;
+          }
+        }
 
-        // Determine status
-        const isRunning = status.toLowerCase().includes('up');
-        const containerStatus = isRunning ? 'running' : 'exited';
-
-        // Get stored info if available
+        // Fallback to stored info if port not in listing (e.g. stopped)
         const storedInfo = containerStore.get(id);
+        if (!sshPort && storedInfo) {
+          sshPort = storedInfo.sshPort;
+        }
 
         // Auto-populate store
         if (!storedInfo && sshPort) {
@@ -204,23 +235,21 @@ Meteor.methods({
             id: id,
             name: name,
             sshPort: sshPort,
-            created: Math.floor(Date.now() / 1000),
-            image: image,
+            created: info.Created,
+            image: info.Image,
             userId: this.userId
           });
         }
 
         return {
           id: id,
-          name: name || storedInfo?.name || 'unnamed',
-          image: image,
-          sshPort: sshPort || storedInfo?.sshPort,
-          created: storedInfo?.created || Math.floor(Date.now() / 1000),
-          status: containerStatus
+          name: name,
+          image: info.Image,
+          sshPort: sshPort,
+          created: info.Created,
+          status: info.State // 'running', 'exited', etc.
         };
       });
-
-      return containers;
 
     } catch (error) {
       console.error('Error listing containers:', error);
@@ -236,13 +265,10 @@ Meteor.methods({
       throw new Meteor.Error('not-authorized', 'You must be logged in');
     }
 
-    if (!containerId) {
-      throw new Meteor.Error('invalid-params', 'Container ID is required');
-    }
-
     try {
       console.log(`Stopping container: ${containerId}`);
-      await execAsync(`docker stop ${containerId}`, { timeout: 10000 });
+      const container = docker.getContainer(containerId);
+      await container.stop();
       console.log(`Container stopped: ${containerId}`);
       return { success: true };
     } catch (error) {
@@ -259,16 +285,13 @@ Meteor.methods({
       throw new Meteor.Error('not-authorized', 'You must be logged in');
     }
 
-    if (!containerId) {
-      throw new Meteor.Error('invalid-params', 'Container ID is required');
-    }
-
     try {
       console.log(`Starting container: ${containerId}`);
-      await execAsync(`docker start ${containerId}`, { timeout: 5000 });
+      const container = docker.getContainer(containerId);
+      await container.start();
       console.log(`Container started: ${containerId}`);
       
-      // Brief wait for SSH (but don't block)
+      // Brief wait for SSH
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       return { success: true };
@@ -286,26 +309,19 @@ Meteor.methods({
       throw new Meteor.Error('not-authorized', 'You must be logged in');
     }
 
-    if (!containerId) {
-      throw new Meteor.Error('invalid-params', 'Container ID is required');
-    }
-
     try {
       console.log(`Removing container: ${containerId}`);
+      const container = docker.getContainer(containerId);
       
-      // Stop first if running
       try {
-        await execAsync(`docker stop ${containerId}`, { timeout: 5000 });
-      } catch (stopError) {
-        console.log('Container already stopped');
+        await container.stop();
+      } catch (e) {
+        // Ignore if already stopped
       }
       
-      // Remove the container
-      await execAsync(`docker rm ${containerId}`, { timeout: 5000 });
-
-      // Remove from store
-      containerStore.delete(containerId);
-
+      await container.remove();
+      containerStore.delete(containerId.substring(0, 12));
+      
       console.log(`Container removed: ${containerId}`);
       return { success: true };
     } catch (error) {
@@ -323,8 +339,13 @@ Meteor.methods({
     }
 
     try {
-      const { stdout } = await execAsync(`docker logs --tail ${lines} ${containerId}`, { timeout: 5000 });
-      return stdout;
+      const container = docker.getContainer(containerId);
+      const logs = await container.logs({
+        stdout: true,
+        stderr: true,
+        tail: lines
+      });
+      return logs.toString('utf8'); // logs returns a buffer or stream depending on options, but with simple options it might return buffer
     } catch (error) {
       console.error('Error getting container logs:', error);
       throw new Meteor.Error('get-logs-failed', error.message);
@@ -333,7 +354,7 @@ Meteor.methods({
 });
 
 /**
- * OPTIMIZED: Find available port with caching and batch checking
+ * OPTIMIZED: Find available port using Dockerode
  */
 async function findAvailablePortFast(startPort) {
   let port = startPort;
@@ -341,11 +362,15 @@ async function findAvailablePortFast(startPort) {
   const usedPorts = new Set();
   
   try {
-    // Get all Docker ports in one go
-    const { stdout } = await execAsync('docker ps -a --format "{{.Ports}}"', { timeout: 2000 });
-    const portMatches = stdout.matchAll(/0\.0\.0\.0:(\d+)->/g);
-    for (const match of portMatches) {
-      usedPorts.add(parseInt(match[1]));
+    const containers = await docker.listContainers({ all: true });
+    for (const container of containers) {
+      if (container.Ports) {
+        for (const p of container.Ports) {
+          if (p.PublicPort) {
+            usedPorts.add(p.PublicPort);
+          }
+        }
+      }
     }
   } catch (error) {
     console.warn('Could not check Docker ports:', error.message);
@@ -354,16 +379,7 @@ async function findAvailablePortFast(startPort) {
   // Quick scan for available port
   for (let i = 0; i < maxAttempts; i++) {
     if (!usedPorts.has(port)) {
-      // Quick system port check (optional - skip for speed)
-      try {
-        const { stdout } = await execAsync(`lsof -i :${port} 2>/dev/null || echo "available"`, { timeout: 500 });
-        if (stdout.includes('available') || !stdout.trim()) {
-          return port;
-        }
-      } catch (error) {
-        // If lsof fails or times out, assume port is available
-        return port;
-      }
+      return port;
     }
     port++;
   }

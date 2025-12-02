@@ -52,6 +52,8 @@ RUN ssh-keygen -A
 RUN echo 'root:password123' | chpasswd
 
 # OPTIMIZATION: Configure SSH in one go with optimized settings
+# Note: sftp subsystem is usually already defined in default config, so we use sed to replace or ensure it's correct
+# instead of appending blindly which causes "already defined" error.
 RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
     sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
@@ -63,7 +65,6 @@ RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/
     echo 'ChallengeResponseAuthentication no'; \
     echo 'UsePAM yes'; \
     echo 'AcceptEnv LANG LC_*'; \
-    echo 'Subsystem sftp /usr/lib/openssh/sftp-server'; \
     echo 'PermitEmptyPasswords no'; \
     echo 'MaxAuthTries 6'; \
     echo 'MaxSessions 10'; \

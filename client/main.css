@@ -1248,6 +1248,121 @@ body {
   font-weight: 600;
 }
 
+/* Bottom Panel Styles */
+.bottom-panel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.3);
+  z-index: 1500;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.bottom-panel-content {
+  background-color: #1e1e1e;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+  width: 100%;
+  height: 60vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  border-top: 1px solid #333;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.bottom-panel-content .modal-header {
+  background-color: #252526;
+  padding: 10px 20px;
+  border-bottom: 1px solid #333;
+  border-radius: 8px 8px 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bottom-panel-content .terminal-instance {
+  flex: 1;
+  height: auto !important;
+  padding: 0 !important;
+}
+
+.bottom-panel-content .terminal-status-bar {
+  background-color: #252526 !important;
+  border-bottom: 1px solid #333 !important;
+  padding: 8px 20px !important;
+}
+
+/* Window Controls */
+.window-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.window-btn {
+  background: transparent;
+  border: none;
+  color: #ecf0f1;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  padding: 0;
+}
+
+.window-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.window-btn.close:hover {
+  background-color: #e74c3c;
+}
+
+/* View States */
+.bottom-panel-overlay.minimized {
+  background-color: transparent;
+  pointer-events: none;
+}
+
+.bottom-panel-content {
+  transition: height 0.3s cubic-bezier(0.16, 1, 0.3, 1), width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
+}
+
+.bottom-panel-content.maximized {
+  height: 100vh;
+  border-radius: 0;
+}
+
+.bottom-panel-content.maximized .modal-header {
+  border-radius: 0;
+}
+
+.bottom-panel-content.minimized {
+  height: 52px; /* Header height */
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.bottom-panel-content.minimized .terminal-status-bar,
+.bottom-panel-content.minimized .terminal-instance {
+  display: none;
+}
+
 .modal-close {
   background: none;
   border: none;
@@ -2931,5 +3046,372 @@ body {
   
   .vm-terminal-container .tab-bar {
     padding: 3px;
+  }
+}
+
+/* Additional CSS for Toggle Button and Tabs - Add to your main.css */
+
+/* Toggle Button Styles */
+.toggle-btn {
+  background: none;
+  border: 2px solid;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.toggle-btn.running {
+  border-color: #e74c3c;
+  color: #e74c3c;
+  background: rgba(231, 76, 60, 0.1);
+}
+
+.toggle-btn.running:hover {
+  background: #e74c3c;
+  color: white;
+  transform: scale(1.1);
+  box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
+}
+
+.toggle-btn.stopped {
+  border-color: #27ae60;
+  color: #27ae60;
+  background: rgba(39, 174, 96, 0.1);
+}
+
+.toggle-btn.stopped:hover {
+  background: #27ae60;
+  color: white;
+  transform: scale(1.1);
+  box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);
+}
+
+/* Status Badge - Stopped State */
+.status-badge.stopped {
+  background: rgba(149, 165, 166, 0.2);
+  color: #95a5a6;
+  border: 1px solid #7f8c8d;
+}
+
+/* Tab Container Styles */
+.tab-container {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 0;
+}
+
+.tab-button {
+  background-color: #34495e;
+  color: #ecf0f1;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.tab-button:hover {
+  background-color: #3d566e;
+  transform: translateY(-2px);
+}
+
+.tab-button.active {
+  background-color: #3498db;
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+}
+
+.tab-button .container-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.2);
+  color: #ecf0f1;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: bold;
+  min-width: 20px;
+  margin-left: 4px;
+}
+
+.tab-button.active .container-count {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+/* Update containers header to accommodate tabs */
+.containers-header .header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Hide Connect button on stopped containers - already handled in component */
+
+/* Responsive adjustments for tabs */
+@media (max-width: 768px) {
+  .tab-container {
+    flex-direction: row;
+    width: 100%;
+  }
+  
+  .tab-button {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 14px;
+    justify-content: center;
+  }
+  
+  .toggle-btn {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .containers-header {
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+  }
+  
+  .header-title {
+    width: 100%;
+  }
+  
+  .create-container-btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .tab-button {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  
+  .tab-button svg {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .toggle-btn {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .toggle-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+/* Additional CSS for Toggle Button, Close Button and Tabs - Add to your main.css */
+
+/* Container Actions Top - Holds both buttons */
+.container-actions-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Toggle Button Styles */
+.toggle-btn {
+  background: none;
+  border: 2px solid;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.toggle-btn.running {
+  border-color: #e74c3c;
+  color: #e74c3c;
+  background: rgba(231, 76, 60, 0.1);
+}
+
+.toggle-btn.running:hover {
+  background: #e74c3c;
+  color: white;
+  transform: scale(1.1);
+  box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
+}
+
+.toggle-btn.stopped {
+  border-color: #27ae60;
+  color: #27ae60;
+  background: rgba(39, 174, 96, 0.1);
+}
+
+.toggle-btn.stopped:hover {
+  background: #27ae60;
+  color: white;
+  transform: scale(1.1);
+  box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);
+}
+
+/* Close Button Styles (for permanent delete) */
+.close-btn {
+  background: rgba(231, 76, 60, 0.1);
+  color: #e74c3c;
+  border: 2px solid #e74c3c;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  font-size: 20px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  line-height: 1;
+  padding: 0;
+}
+
+.close-btn:hover {
+  background: #e74c3c;
+  color: white;
+  transform: rotate(90deg) scale(1.1);
+  box-shadow: 0 4px 15px rgba(231, 76, 60, 0.5);
+}
+
+/* Status Badge - Stopped State */
+.status-badge.stopped {
+  background: rgba(149, 165, 166, 0.2);
+  color: #95a5a6;
+  border: 1px solid #7f8c8d;
+}
+
+/* Tab Container Styles */
+.tab-container {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 0;
+}
+
+.tab-button {
+  background-color: #34495e;
+  color: #ecf0f1;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.tab-button:hover {
+  background-color: #3d566e;
+  transform: translateY(-2px);
+}
+
+.tab-button.active {
+  background-color: #3498db;
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+}
+
+.tab-button .container-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.2);
+  color: #ecf0f1;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: bold;
+  min-width: 20px;
+  margin-left: 4px;
+}
+
+.tab-button.active .container-count {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+/* Update containers header to accommodate tabs */
+.containers-header .header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Hide Connect button on stopped containers - already handled in component */
+
+/* Responsive adjustments for tabs */
+@media (max-width: 768px) {
+  .tab-container {
+    flex-direction: row;
+    width: 100%;
+  }
+  
+  .tab-button {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 14px;
+    justify-content: center;
+  }
+  
+  .toggle-btn {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .containers-header {
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+  }
+  
+  .header-title {
+    width: 100%;
+  }
+  
+  .create-container-btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .tab-button {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  
+  .tab-button svg {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .toggle-btn {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .toggle-btn svg {
+    width: 16px;
+    height: 16px;
   }
 }

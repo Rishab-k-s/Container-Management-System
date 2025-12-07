@@ -17,6 +17,7 @@ export const ContainerTerminal = ({ container, onClose }) => {
   const inputHandlerRef = useRef(null);
   const isConnectedRef = useRef(false);
   const sshPollInterval = useRef(null);
+  const connectionAttempted = useRef(false);
   
   const [connectionStatus, setConnectionStatus] = useState('Initializing...');
   const [isConnected, setIsConnected] = useState(false);
@@ -163,6 +164,8 @@ export const ContainerTerminal = ({ container, onClose }) => {
 
   // OPTIMIZATION: Poll for SSH readiness
   const checkSSHReady = () => {
+    if (connectionAttempted.current) return;
+
     Meteor.call('docker.checkSSHReady', container.id, (err, result) => {
       if (err) {
         console.error('SSH check error:', err);
@@ -170,11 +173,14 @@ export const ContainerTerminal = ({ container, onClose }) => {
       }
 
       if (result && result.ready) {
+        if (connectionAttempted.current) return;
+        
         console.log('SSH is ready, attempting connection...');
         if (sshPollInterval.current) {
           clearInterval(sshPollInterval.current);
           sshPollInterval.current = null;
         }
+        connectionAttempted.current = true;
         attemptConnection();
       }
     });
@@ -238,6 +244,14 @@ export const ContainerTerminal = ({ container, onClose }) => {
 
         socket.current.on('connect', () => {
           console.log('WebSocket connected');
+          connectionAttempted.current = false; // Reset on new socket connection
+          
+          // Clear any existing interval to prevent duplicates on reconnect
+          if (sshPollInterval.current) {
+            clearInterval(sshPollInterval.current);
+            sshPollInterval.current = null;
+          }
+          
           if (term.current && isInitialized.current) {
             term.current.writeln('\x1b[32m✓ WebSocket connected\x1b[0m');
           }
@@ -248,6 +262,7 @@ export const ContainerTerminal = ({ container, onClose }) => {
             if (term.current && isInitialized.current) {
               term.current.writeln('\x1b[32m✓ SSH server ready\x1b[0m');
             }
+            connectionAttempted.current = true;
             setTimeout(() => attemptConnection(), 500);
           } else {
             // Poll for SSH readiness
@@ -265,7 +280,10 @@ export const ContainerTerminal = ({ container, onClose }) => {
               if (sshPollInterval.current) {
                 clearInterval(sshPollInterval.current);
                 sshPollInterval.current = null;
-                attemptConnection(); // Try anyway
+                if (!connectionAttempted.current) {
+                  connectionAttempted.current = true;
+                  attemptConnection(); // Try anyway
+                }
               }
             }, 10000);
           }
@@ -309,11 +327,13 @@ export const ContainerTerminal = ({ container, onClose }) => {
             
             setTimeout(() => {
               if (socket.current && socket.current.connected) {
+                connectionAttempted.current = true; // Ensure flag is set for retry
                 attemptConnection();
               }
             }, 1000);
           } else {
             setConnectionStatus('Connection Error');
+            connectionAttempted.current = false; // Allow manual retry or reconnection
             if (term.current && isInitialized.current) {
               term.current.writeln(`\r\n\x1b[31m✗ Connection error: ${error.message || error}\x1b[0m`);
               if (retryCount >= maxRetries) {
@@ -328,6 +348,14 @@ export const ContainerTerminal = ({ container, onClose }) => {
           setConnectionStatus('Disconnected');
           setIsConnected(false);
           isConnectedRef.current = false;
+          connectionAttempted.current = false; // Reset on disconnect
+          
+          // Stop polling when disconnected
+          if (sshPollInterval.current) {
+            clearInterval(sshPollInterval.current);
+            sshPollInterval.current = null;
+          }
+
           if (term.current && isInitialized.current) {
             term.current.writeln('\r\n\x1b[31m✗ Disconnected\x1b[0m');
           }

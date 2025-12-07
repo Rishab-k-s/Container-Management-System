@@ -20,6 +20,14 @@ io.on('connection', (socket) => {
   socket.on('container-connect', async (connectionData) => {
     console.log('Container connect request:', connectionData);
 
+    // Close any existing connection for this socket
+    const existingConnection = sshConnections.get(socket.id);
+    if (existingConnection) {
+      console.log('Closing existing connection for socket:', socket.id);
+      existingConnection.ssh.end();
+      sshConnections.delete(socket.id);
+    }
+
     const { containerId, sshPort, host, username, password } = connectionData;
     
     const actualUsername = username || 'root';
@@ -62,6 +70,9 @@ io.on('connection', (socket) => {
 
           console.log('SSH shell established with PTY for container:', containerId);
 
+          // Automatically switch to root directory to avoid user confusion
+          stream.write('cd /\n');
+
           // Forward SSH output to client
           stream.on('data', (data) => {
             const output = data.toString('utf-8');
@@ -80,12 +91,14 @@ io.on('connection', (socket) => {
           });
 
           // Handle input from client
+          socket.removeAllListeners('container-input');
           socket.on('container-input', (data) => {
             console.log('Received input from client:', JSON.stringify(data), 'length:', data.length);
             stream.write(data);
           });
 
           // Handle terminal resize - important for proper display
+          socket.removeAllListeners('container-resize');
           socket.on('container-resize', ({ cols, rows }) => {
             console.log('Terminal resize:', cols, 'x', rows);
             try {
@@ -100,12 +113,20 @@ io.on('connection', (socket) => {
       ssh.on('error', (err) => {
         console.error('SSH connection error:', err);
         socket.emit('container-error', { message: err.message });
-        sshConnections.delete(socket.id);
+        // Only delete if this is the current connection for this socket
+        const current = sshConnections.get(socket.id);
+        if (current && current.ssh === ssh) {
+          sshConnections.delete(socket.id);
+        }
       });
 
       ssh.on('close', () => {
         console.log('SSH connection closed');
-        sshConnections.delete(socket.id);
+        // Only delete if this is the current connection for this socket
+        const current = sshConnections.get(socket.id);
+        if (current && current.ssh === ssh) {
+          sshConnections.delete(socket.id);
+        }
       });
 
       ssh.on('keyboard-interactive', (name, instructions, instructionsLang, prompts, finish) => {
@@ -153,6 +174,14 @@ io.on('connection', (socket) => {
   socket.on('startSession', (data) => {
     console.log('Starting VM SSH session:', data.host);
     
+    // Close any existing connection for this socket
+    const existingConnection = sshConnections.get(socket.id);
+    if (existingConnection) {
+      console.log('Closing existing VM connection for socket:', socket.id);
+      existingConnection.ssh.end();
+      sshConnections.delete(socket.id);
+    }
+
     const ssh = new Client();
     sshConnections.set(socket.id, { ssh, type: 'vm' });
 
@@ -187,11 +216,13 @@ io.on('connection', (socket) => {
         });
 
         // Handle input from client
+        socket.removeAllListeners('input');
         socket.on('input', (inputData) => {
           stream.write(inputData);
         });
 
         // Handle resize
+        socket.removeAllListeners('resize');
         socket.on('resize', (size) => {
           if (size && size.cols && size.rows) {
             stream.setWindow(size.rows, size.cols, 0, 0);
@@ -203,13 +234,19 @@ io.on('connection', (socket) => {
     ssh.on('error', (err) => {
       console.error('VM SSH Client Error:', err);
       socket.emit('error', { message: err.message });
-      sshConnections.delete(socket.id);
+      const current = sshConnections.get(socket.id);
+      if (current && current.ssh === ssh) {
+        sshConnections.delete(socket.id);
+      }
     });
 
     ssh.on('close', () => {
       console.log('VM SSH Client :: close');
       socket.emit('ssh-session-ended');
-      sshConnections.delete(socket.id);
+      const current = sshConnections.get(socket.id);
+      if (current && current.ssh === ssh) {
+        sshConnections.delete(socket.id);
+      }
     });
 
     try {

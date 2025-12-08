@@ -1,0 +1,9 @@
+# Basic Alpine container
+FROM alpine:latest
+
+# Install some basic tools
+RUN apk add --no-cache curl wget vim git python3
+
+WORKDIR /workspace
+
+# No CMD - SSH will be the main process

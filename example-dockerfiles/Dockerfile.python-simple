@@ -1,0 +1,13 @@
+# Simple Python application
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install a simple Python package
+RUN pip install requests flask
+
+# Create a simple Python script
+RUN echo 'print("Hello from Python container!")' > /app/hello.py
+
+# This will be preserved, and SSH will run alongside
+CMD ["python", "-u", "-c", "import time; print('Python app running...'); [print(f'Tick {i}') or time.sleep(5) for i in range(999999)]"]

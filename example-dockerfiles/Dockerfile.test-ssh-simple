@@ -1,0 +1,29 @@
+# Minimal Ubuntu with SSH - for testing
+FROM ubuntu:22.04
+
+# Install SSH server
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-server && \
+    mkdir -p /var/run/sshd /root
+
+# Set root password
+RUN echo "root:password" | chpasswd
+
+# Configure SSH
+RUN rm -f /etc/ssh/sshd_config && \
+    echo 'Port 22' >> /etc/ssh/sshd_config && \
+    echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config && \
+    echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
+    echo 'ChallengeResponseAuthentication no' >> /etc/ssh/sshd_config && \
+    echo 'UsePAM no' >> /etc/ssh/sshd_config && \
+    echo 'X11Forwarding no' >> /etc/ssh/sshd_config && \
+    echo 'PrintMotd no' >> /etc/ssh/sshd_config && \
+    echo 'Subsystem sftp /usr/lib/openssh/sftp-server' >> /etc/ssh/sshd_config
+
+# Regenerate SSH host keys
+RUN ssh-keygen -A
+
+EXPOSE 22
+
+# Start SSH server in debug mode
+CMD ["/usr/sbin/sshd", "-D", "-d"]

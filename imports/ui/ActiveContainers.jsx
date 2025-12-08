@@ -7,7 +7,9 @@ export const ActiveContainers = ({
   onStopContainer,
   onStartContainer,
   onRemoveContainer,
-  loading 
+  onImportDockerfile,
+  createLoading,
+  importLoading
 }) => {
   const [activeTab, setActiveTab] = useState('active'); // 'active' or 'stopped'
 
@@ -51,32 +53,62 @@ export const ActiveContainers = ({
             </div>
           </div>
           
-          <button 
-            className="create-container-btn"
-            onClick={onCreateContainer}
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <span>Creating...</span>
-                <div className="spinner" style={{
-                  width: '16px',
-                  height: '16px',
-                  border: '2px solid rgba(255, 255, 255, 0.3)',
-                  borderTopColor: 'white',
-                  borderRadius: '50%',
-                  animation: 'spin 0.8s linear infinite'
-                }}></div>
-              </>
-            ) : (
-              <>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12 5v14m-7-7h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-                Create Container
-              </>
-            )}
-          </button>
+          <div className="header-buttons">
+            <button 
+              className="import-dockerfile-btn"
+              onClick={onImportDockerfile}
+              disabled={importLoading}
+              title="Import and build from Dockerfile"
+            >
+              {importLoading ? (
+                <>
+                  <span>Importing...</span>
+                  <div className="spinner" style={{
+                    width: '16px',
+                    height: '16px',
+                    border: '2px solid rgba(255, 255, 255, 0.3)',
+                    borderTopColor: 'white',
+                    borderRadius: '50%',
+                    animation: 'spin 0.8s linear infinite'
+                  }}></div>
+                </>
+              ) : (
+                <>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Import Dockerfile
+                </>
+              )}
+            </button>
+            
+            <button 
+              className="create-container-btn"
+              onClick={onCreateContainer}
+              disabled={createLoading}
+            >
+              {createLoading ? (
+                <>
+                  <span>Creating...</span>
+                  <div className="spinner" style={{
+                    width: '16px',
+                    height: '16px',
+                    border: '2px solid rgba(255, 255, 255, 0.3)',
+                    borderTopColor: 'white',
+                    borderRadius: '50%',
+                    animation: 'spin 0.8s linear infinite'
+                  }}></div>
+                </>
+              ) : (
+                <>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 5v14m-7-7h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                  Create Container
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Containers Grid */}

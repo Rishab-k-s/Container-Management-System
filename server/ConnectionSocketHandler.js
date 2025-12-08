@@ -21,6 +21,11 @@ io.on('connection', (socket) => {
     console.log('Container connect request:', connectionData);
 
     const { containerId, sshPort, host, username, password } = connectionData;
+    
+    const actualUsername = username || 'root';
+    const actualPassword = password || 'password';
+    
+    console.log(`Attempting SSH connection to ${host || 'localhost'}:${sshPort} with username: ${actualUsername}`);
 
     if (!sshPort) {
       socket.emit('container-error', { message: 'SSH port not available' });
@@ -103,17 +108,23 @@ io.on('connection', (socket) => {
         sshConnections.delete(socket.id);
       });
 
+      ssh.on('keyboard-interactive', (name, instructions, instructionsLang, prompts, finish) => {
+        console.log('SSH keyboard-interactive auth');
+        finish([actualPassword]);
+      });
+
       ssh.connect({
         host: host || 'localhost',
         port: sshPort,
-        username: username || 'root',
-        password: password || 'password123',
+        username: actualUsername,
+        password: actualPassword,
+        tryKeyboard: true,
         readyTimeout: 30000,
         keepaliveInterval: 10000,
         keepaliveCountMax: 3,
         // Add these for better compatibility
         algorithms: {
-          serverHostKey: ['ssh-rsa', 'ssh-dss', 'ecdsa-sha2-nistp256', 'ecdsa-sha2-nistp384', 'ecdsa-sha2-nistp521']
+          serverHostKey: ['ssh-rsa', 'ssh-dss', 'ecdsa-sha2-nistp256', 'ecdsa-sha2-nistp384', 'ecdsa-sha2-nistp521', 'ssh-ed25519']
         },
         debug: (msg) => console.log('SSH Debug:', msg)
       });

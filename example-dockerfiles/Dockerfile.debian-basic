@@ -1,0 +1,17 @@
+# Basic Debian container
+FROM debian:bullseye-slim
+
+# Install some useful tools
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    curl \
+    wget \
+    vim \
+    git \
+    htop \
+    && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+# No CMD specified - SSH will become the main process

@@ -1,0 +1,8 @@
+# Nginx web server
+FROM nginx:alpine
+
+# Create a custom index page
+RUN echo '<h1>Hello from Nginx!</h1><p>SSH is also running in this container.</p>' > /usr/share/nginx/html/index.html
+
+# Nginx runs in foreground, SSH will run in background
+CMD ["nginx", "-g", "daemon off;"]

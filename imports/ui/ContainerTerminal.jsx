@@ -198,7 +198,7 @@ export const ContainerTerminal = ({ container, onClose }) => {
       sshPort: container.sshPort,
       host: 'localhost',
       username: 'root',
-      password: 'password123'
+      password: 'password'
     });
   };
 

@@ -1,0 +1,12 @@
+# Basic Ubuntu container (no CMD/ENTRYPOINT)
+FROM ubuntu:22.04
+
+# Install some basic tools
+RUN apt-get update && \
+    apt-get install -y curl wget vim git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+# No CMD - SSH will be the main process

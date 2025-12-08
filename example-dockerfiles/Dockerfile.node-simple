@@ -1,0 +1,10 @@
+# Simple Node.js application
+FROM node:18-slim
+
+WORKDIR /app
+
+# Create a simple Node.js script
+RUN echo 'setInterval(() => console.log("Node app running... " + new Date().toISOString()), 3000)' > /app/server.js
+
+# This will be preserved, and SSH will run alongside
+CMD ["node", "/app/server.js"]

@@ -1,0 +1,23 @@
+# Python Flask web application
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install Flask
+RUN pip install flask
+
+# Create a simple Flask app
+RUN echo 'from flask import Flask\n\
+app = Flask(__name__)\n\
+\n\
+@app.route("/")\n\
+def hello():\n\
+    return "<h1>Hello from Flask!</h1><p>SSH is also available in this container.</p>"\n\
+\n\
+if __name__ == "__main__":\n\
+    app.run(host="0.0.0.0", port=5000)' > /app/app.py
+
+EXPOSE 5000
+
+# Flask runs in foreground, SSH will run in background
+CMD ["python", "/app/app.py"]

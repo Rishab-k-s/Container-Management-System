@@ -8,8 +8,10 @@ export const TerminalComponent = () => {
   const navigate = useNavigate();
   const [activeContainers, setActiveContainers] = useState([]);
   const [selectedContainer, setSelectedContainer] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
   const [error, setError] = useState('');
+  const fileInputRef = React.useRef(null);
 
   // Fetch active containers on mount
   useEffect(() => {
@@ -31,11 +33,11 @@ export const TerminalComponent = () => {
   };
 
   const handleCreateContainer = () => {
-    setLoading(true);
+    setCreateLoading(true);
     setError('');
 
     Meteor.call('docker.createContainer', (err, result) => {
-      setLoading(false);
+      setCreateLoading(false);
       
       if (err) {
         setError(err.reason || 'Failed to create container');
@@ -72,11 +74,11 @@ export const TerminalComponent = () => {
   };
 
   const handleStartContainer = (containerId) => {
-    setLoading(true);
+    setCreateLoading(true);
     setError('');
 
     Meteor.call('docker.startContainer', containerId, (err) => {
-      setLoading(false);
+      setCreateLoading(false);
       
       if (err) {
         setError(err.reason || 'Failed to start container');
@@ -105,6 +107,58 @@ export const TerminalComponent = () => {
 
   const handleCloseTerminal = () => {
     setSelectedContainer(null);
+  };
+
+  const handleImportDockerfile = () => {
+    // Trigger file input click
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Validate file
+    if (file.name !== 'Dockerfile' && !file.name.startsWith('Dockerfile.')) {
+      setError('Please select a valid Dockerfile');
+      return;
+    }
+
+    setImportLoading(true);
+    setError('');
+
+    // Read file content
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dockerfileContent = e.target.result;
+
+      // Call Meteor method to create container from Dockerfile
+      Meteor.call('docker.createContainerFromDockerfile', dockerfileContent, null, (err, result) => {
+        setImportLoading(false);
+        
+        if (err) {
+          setError(err.reason || 'Failed to import Dockerfile and create container');
+          console.error('Error importing Dockerfile:', err);
+          return;
+        }
+
+        console.log('Container created from Dockerfile:', result);
+        loadContainers();
+        
+        // Show success message
+        alert(`✓ Container created successfully!\nName: ${result.containerName}\nSSH Port: ${result.sshPort}`);
+      });
+    };
+
+    reader.onerror = () => {
+      setImportLoading(false);
+      setError('Failed to read Dockerfile');
+    };
+
+    reader.readAsText(file);
+    
+    // Reset file input
+    event.target.value = '';
   };
 
   return (
@@ -141,7 +195,18 @@ export const TerminalComponent = () => {
         onStopContainer={handleStopContainer}
         onStartContainer={handleStartContainer}
         onRemoveContainer={handleRemoveContainer}
-        loading={loading}
+        onImportDockerfile={handleImportDockerfile}
+        createLoading={createLoading}
+        importLoading={importLoading}
+      />
+
+      {/* Hidden file input for Dockerfile upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="*"
+        style={{ display: 'none' }}
+        onChange={handleFileSelect}
       />
 
       {/* Container Terminal Modal */}

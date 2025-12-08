@@ -4,7 +4,7 @@
   "private": true,
   "description": "Container Management System with Meteor and Docker",
   "scripts": {
-    "start": "meteor run",
+    "start": "meteor run --port 8080",
     "test": "meteor test --once --driver-package meteortesting:mocha",
     "test-app": "TEST_WATCH=1 meteor test --full-app --driver-package meteortesting:mocha",
     "visualize": "meteor --production --extra-packages bundle-visualizer",
@@ -22,7 +22,7 @@
     "test:e2e:vm": "playwright test tests/e2e/04-vm-terminal.spec.js",
     "test:e2e:integration": "playwright test tests/e2e/05-integration.spec.js",
     "test:e2e:report": "playwright show-report",
-    "test:e2e:codegen": "playwright codegen http://localhost:3000",
+    "test:e2e:codegen": "playwright codegen http://localhost:8080",
     "test:all": "npm run test && npm run test:e2e",
     "playwright:install": "playwright install"
   },

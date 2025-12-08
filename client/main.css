@@ -3496,3 +3496,95 @@ body {
     height: 16px;
   }
 }
+
+/* Logout Button Styling */
+.logout-btn {
+  background: rgba(231, 76, 60, 0.9);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
+}
+
+.logout-btn:hover {
+  background: rgba(192, 57, 43, 1);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(231, 76, 60, 0.5);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.logout-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
+}
+
+/* Service Selection Page Logout - Top Right Position */
+.service-page-logout {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 10;
+}
+
+/* VM Terminal Page Logout - In Header */
+.vm-page-logout {
+  margin-left: auto;
+}
+
+/* Terminal Page Header Adjustment */
+.page-header .logout-btn {
+  margin-left: auto;
+}
+
+/* Back to Services Header Adjustment for VM Terminal */
+.vm-terminal-container .back-to-services-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+/* Responsive Logout Button */
+@media (max-width: 768px) {
+  .logout-btn {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  
+  .service-page-logout {
+    top: 15px;
+    right: 15px;
+  }
+  
+  .page-header {
+    flex-wrap: wrap;
+  }
+  
+  .page-header .logout-btn {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .logout-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  
+  .service-page-logout {
+    top: 10px;
+    right: 10px;
+    padding: 8px;
+  }
+}

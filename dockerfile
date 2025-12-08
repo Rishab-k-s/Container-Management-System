@@ -49,7 +49,7 @@ RUN mkdir -p /var/run/sshd /root/.ssh && \
 RUN ssh-keygen -A
 
 # OPTIMIZATION: Set root password
-RUN echo 'root:password123' | chpasswd
+RUN echo 'root:password' | chpasswd
 
 # OPTIMIZATION: Configure SSH in one go with optimized settings
 # Note: sftp subsystem is usually already defined in default config, so we use sed to replace or ensure it's correct

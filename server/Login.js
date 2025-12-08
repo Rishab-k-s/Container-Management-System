@@ -11,12 +11,12 @@ Accounts.onCreateUser((options, user) => {
 
 Meteor.methods({
   // Get the role of the currently logged-in user
-  'users.getRole'() {
+  async 'users.getRole'() {
     if (!this.userId) {
       throw new Meteor.Error('not-authorized', 'You must be logged in');
     }
 
-    const user = Meteor.users.findOne(this.userId);
+    const user = await Meteor.users.findOneAsync(this.userId);
     
     if (!user) {
       throw new Meteor.Error('user-not-found', 'User not found');

@@ -7,7 +7,8 @@ export const ServiceSelectionPage = ({ onServiceSelect }) => {
 
   const handleLogout = () => {
     Meteor.logout(() => {
-      navigate('/');
+      sessionStorage.clear();
+      navigate('/', { replace: true });
     });
   };
 

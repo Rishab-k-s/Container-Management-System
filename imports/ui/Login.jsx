@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Meteor } from 'meteor/meteor';
 import { Accounts } from 'meteor/accounts-base';
 import { useNavigate } from 'react-router-dom';
+import { useTracker } from 'meteor/react-meteor-data';
 
 export const Login = () => {
   const [isRegister, setIsRegister] = useState(false);
@@ -13,6 +14,17 @@ export const Login = () => {
   const [success, setSuccess] = useState('');  // Add this line
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  // Track user authentication status
+  const user = useTracker(() => Meteor.user(), []);
+  const isLoggingIn = useTracker(() => Meteor.loggingIn(), []);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (user && !isLoggingIn) {
+      navigate('/services', { replace: true });
+    }
+  }, [user, isLoggingIn, navigate]);
 
   const handleLogin = (e) => {
     e.preventDefault();

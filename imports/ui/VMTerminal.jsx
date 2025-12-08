@@ -39,7 +39,8 @@ export const VMTerminal = ({ onBack }) => {
 
   const handleLogout = () => {
     Meteor.logout(() => {
-      navigate('/');
+      sessionStorage.clear();
+      navigate('/', { replace: true });
     });
   };
 

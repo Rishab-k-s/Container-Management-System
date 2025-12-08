@@ -2,9 +2,32 @@ import { Meteor } from 'meteor/meteor';
 import Docker from 'dockerode';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import path from 'path';
+import fs from 'fs';
 
 const execAsync = promisify(exec);
 const docker = new Docker();
+
+// Get the project root directory (where Dockerfile is located)
+// Meteor runs from .meteor/local, so we need to go up to find the project root
+function findProjectRoot() {
+  let currentDir = process.cwd();
+  
+  // Keep going up until we find package.json or reach the root
+  while (currentDir !== path.parse(currentDir).root) {
+    if (fs.existsSync(path.join(currentDir, 'package.json')) && 
+        fs.existsSync(path.join(currentDir, 'Dockerfile'))) {
+      return currentDir;
+    }
+    currentDir = path.dirname(currentDir);
+  }
+  
+  // Fallback: try going up from cwd
+  return path.resolve(process.cwd(), '../../../');
+}
+
+const PROJECT_ROOT = findProjectRoot();
+console.log('Project root detected:', PROJECT_ROOT);
 
 // Store for tracking created containers
 const containerStore = new Map();
@@ -52,12 +75,14 @@ Meteor.methods({
 
       if (!imageExists) {
         console.log('Image not found, building...');
-        const buildPath = dockerfilePath || process.env.DOCKERFILE_PATH || '.';
+        const buildPath = dockerfilePath || process.env.DOCKERFILE_PATH || PROJECT_ROOT;
         const buildCommand = `docker build -t debian-ssh-server "${buildPath}"`;
         console.log(`Building with command: ${buildCommand}`);
+        console.log(`Build path: ${buildPath}`);
         
         await execAsync(buildCommand);
         imageExists = true;
+        lastImageCheck = now;
         console.log('✓ Image built successfully');
       } else {
         console.log('✓ Using cached image');

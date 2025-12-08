@@ -13,7 +13,7 @@ export default defineConfig({
   ],
   
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: 'http://localhost:8080',  // Changed from 3000 to 8080
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -22,7 +22,19 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { 
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          args: ['--no-sandbox', '--disable-setuid-sandbox']  // Required for VM
+        }
+      },
     },
   ],
+  
+  webServer: {  // Add this to auto-start Meteor
+    command: 'meteor run --port 8080',
+    url: 'http://localhost:8080',
+    timeout: 120 * 1000,
+    reuseExistingServer: true,
+  },
 });

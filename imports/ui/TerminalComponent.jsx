@@ -163,7 +163,8 @@ export const TerminalComponent = () => {
 
   const handleLogout = () => {
     Meteor.logout(() => {
-      navigate('/');
+      sessionStorage.clear();
+      navigate('/', { replace: true });
     });
   };
 

@@ -7,8 +7,8 @@ import path from 'path';
 const execAsync = promisify(exec);
 const docker = new Docker();
 
-// Get the project root directory (parent of .meteor folder)
-const projectRoot = path.resolve(process.cwd(), '..');
+// Get the project root directory - navigate up from .meteor/local/build/programs/server
+const projectRoot = path.resolve(process.cwd(), '../../../../..');
 
 // Store for tracking created containers
 const containerStore = new Map();

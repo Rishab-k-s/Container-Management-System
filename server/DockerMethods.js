@@ -2,9 +2,13 @@ import { Meteor } from 'meteor/meteor';
 import Docker from 'dockerode';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import path from 'path';
 
 const execAsync = promisify(exec);
 const docker = new Docker();
+
+// Get the project root directory (parent of .meteor folder)
+const projectRoot = path.resolve(process.cwd(), '..');
 
 // Store for tracking created containers
 const containerStore = new Map();
@@ -52,9 +56,10 @@ Meteor.methods({
 
       if (!imageExists) {
         console.log('Image not found, building...');
-        const buildPath = dockerfilePath || process.env.DOCKERFILE_PATH || '.';
+        const buildPath = dockerfilePath || process.env.DOCKERFILE_PATH || projectRoot;
         const buildCommand = `docker build -t debian-ssh-server "${buildPath}"`;
         console.log(`Building with command: ${buildCommand}`);
+        console.log(`Build path: ${buildPath}`);
         
         await execAsync(buildCommand);
         imageExists = true;

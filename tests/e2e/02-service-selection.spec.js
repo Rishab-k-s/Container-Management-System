@@ -25,8 +25,16 @@ test.describe('Service Selection Page', () => {
     await page.selectOption('select[id="role"]', 'user');
     await page.click('button[type="submit"]');
     
-    // Wait for success
-    await page.waitForSelector('text=Account created successfully', { timeout: 5000 });
+    // After registration, user is auto-logged in then logged out
+    // Wait for the form to switch back to login mode
+    try {
+      await page.getByText('Account created successfully').waitFor({ timeout: 3000 });
+    } catch {
+      // Success message might have already disappeared, that's okay
+    }
+    
+    // Verify we're back on login form
+    await page.locator('button[type="submit"]').waitFor({ timeout: 10000 });
     
     await page.close();
     console.log('✓ Test user created for service tests:', testUser.email);

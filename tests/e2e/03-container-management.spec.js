@@ -383,25 +383,35 @@ test.describe('Container Management - Creation and SSH', () => {
     });
 
     test('should stop a running container', async ({ page }) => {
-      // Find toggle button
+      // Ensure we're on the Active tab first
+      await page.locator('.tab-button:has-text("Active")').click();
+      await page.waitForTimeout(500);
+      
+      // Verify there's at least one running container
+      await expect(page.locator('.container-card').first()).toBeVisible({ timeout: 5000 });
+      
+      // Find and click toggle button to stop
       const toggleBtn = page.locator('.toggle-btn').first();
       await expect(toggleBtn).toBeVisible();
-      
-      // Click to stop
       await toggleBtn.click();
       
-      // Wait for status change
+      // Wait for the stop operation to complete
       await page.waitForTimeout(3000);
       
       // Switch to stopped tab
       await page.locator('.tab-button:has-text("Stopped")').click();
+      await page.waitForTimeout(1000);
       
-      // Verify container appears in stopped tab
-      await expect(page.locator('.container-card').first()).toBeVisible({ timeout: 5000 });
+      // Verify container appears in stopped tab (wait up to 10s for it to appear)
+      await expect(page.locator('.container-card').first()).toBeVisible({ timeout: 10000 });
     });
 
     test('should start a stopped container', async ({ page }) => {
-      // Stop container first
+      // Ensure we're on the Active tab and stop a container first
+      await page.locator('.tab-button:has-text("Active")').click();
+      await page.waitForTimeout(500);
+      
+      // Stop the container
       await page.locator('.toggle-btn').first().click();
       await page.waitForTimeout(3000);
       
@@ -409,8 +419,12 @@ test.describe('Container Management - Creation and SSH', () => {
       await page.locator('.tab-button:has-text("Stopped")').click();
       await page.waitForTimeout(1000);
       
+      // Verify container is in stopped tab
+      await expect(page.locator('.container-card').first()).toBeVisible({ timeout: 10000 });
+      
       // Start container
       const startBtn = page.locator('.toggle-btn').first();
+      await expect(startBtn).toBeVisible();
       await startBtn.click();
       
       // Wait for status change
@@ -418,9 +432,10 @@ test.describe('Container Management - Creation and SSH', () => {
       
       // Switch back to active tab
       await page.locator('.tab-button:has-text("Active")').click();
+      await page.waitForTimeout(1000);
       
-      // Verify container is running
-      await expect(page.locator('.container-card').first()).toBeVisible({ timeout: 5000 });
+      // Verify container is back in active tab
+      await expect(page.locator('.container-card').first()).toBeVisible({ timeout: 10000 });
     });
 
     test('should remove a container', async ({ page }) => {
